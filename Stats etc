@@ -1,0 +1,221 @@
+
+Target - Get actor location.
+
+sphere overlapping actors of type/pawn
+
+for loop. nr=how many we want to do? (variable)
+
+hit results. (hit actors) add to actor array
+
+for each loop -> get actor location - add to vector array -> apply damage
+
+Niagara: start = target. dynamic beam to each of the  vetor array locations.
+
+impact fx on each target
+
+
+Stats:
+
+Strength, 2 melee Attack Power per point of Strength for str classes / 1 ap for others
+Agility, 1 ap / point for agi classes , 2 Armor for every point of Agility, 1% crit chance per 20 points, 1% Dodge for every 20 points
+Intellect, gain 15 Mana for each point of Intellect, 1% Spell Critical Strike chance for every 60 points
+Stamina, 10 Health for every point
+Spirit, regen rate: (Spirit/4.5 + 15) per 5 sec. ticks every 2 sec. timer starts when not taken damage or cast spell for 5 seconds
+
+Weapon Stats:
+Weapon damage (auto attacks) x-x value
+Attack speed  (auto attacks) autoswing timer * haste%
+Armor Penetration - ignores targets value by flat amount
+
+Defence - Every point of Defense gives 0.04% dodge, 0.04% parry, 0.04% block, 0.04% reduced chance to be hit, 0.04% reduced chance to be crit (might be redundant for pvp)
+
+
+
+
+
+Strength increases the amount of your melee attack power, and how much damage you can block with a Shield.
+Druids, Paladins, Shaman and Warriors gain 2 melee Attack Power per point of Strength.
+Hunters, Mages, Priests, Rogues and Warlocks gain 1 melee Attack Power per point of strength.
+
+
+Paladins, Shaman and Warriors with a Shield equipped have a chance to block 1 Damage for every 20 points of Strength.
+
+Agility increases ranged and Melee attack power for some classes, increases Armor rating, increases Dodge chance, and increases your Critical Strike chance when attacking with a weapon.
+Rogues and Warriors gain 1 ranged Attack Power per point of Agility.
+Hunters gain 2 ranged Attack Power per point of Agility.
+Druids in  Cat Form, Hunters and Rogues gain 1 melee Attack Power per point of Agility.
+You gain 2 Armor for every point of Agility.
+You gain Critical Strike Chance at varying points, depending on your class:
+Druids, Paladins, Shaman and Warriors receive 1% Critical Strike Chance for every 20 points of Agility.
+Rogues receive 1% Critical Strike Chance for every 29 points of Agility.
+Hunters receive 1% Critical Strike Chance for every 53 points of Agility.
+All classes but Hunters and Rogues receive 1% Dodge for every 20 points of Agility.
+Rogues receive 1% Dodge for every 14.5 points of Agility.
+Hunters receive 1% Dodge for every 26 points of Agility.
+
+
+
+Intellect
+Intellect increases your maximum Mana for Mana classes, increases your chance to score a Critical Strike with spells, and improves the rate at which you improve your Weapon Skills. For Warlocks, it will also increase their pets' Intellect (and their Mana).
+You gain 15 Mana for each point of Intellect.
+You gain Critical Strike chance at varying points, depending on your class:
+Warlocks receive 1% Spell Critical Strike chance for every 60.6 points of intellect.
+Druids receive 1% Spell Critical Strike chance for every 60 points of intellect.
+Shamans receive 1% Spell Critical Strike chance for every 59.5 points of intellect.
+Mages receive 1% Spell Critical Strike chance for every 59.5 points of intellect.
+Priests receive 1% Spell Critical Strike chance for every 59.2 points of intellect.
+Paladins receive 1% Spell Critical Strike chance for every 54 points of intellect.
+
+
+Stamina
+Stamina increases your maximum Health. For Hunters and Warlocks, Stamina also increases their pets' Stamina (and thus, Health).
+You gain 10 Health for every point of Stamina.
+Thanks to  Endurance, Tauren characters gain 10.5 Health for every point of Stamina.
+
+Spirit
+Spirit increases Health regeneration while out of combat and increases Mana regeneration while not casting spells. As there are many ways to regenerate Health, Spirit is usually picked as a way to regenerate Mana more often.
+Mana begins to regenerate via Spirit only when you have not cast any spells that cost Mana for 5 seconds. This is to refered to as the "Five Second Rule".
+After not casting spells that cost Mana for 5 seconds, you will begin to regenerate Mana every 2 seconds, the amount depending on your class:
+Druid (caster): Spirit/4.5 + 15
+Druid (feral), Hunter, Paladin, Warlock: Spirit/5 + 15
+Mage, Priest: Spirit/4 + 12.5
+Shaman: Spirit/5 + 17
+Restoration Druids, Holy and Discipline Priests and Mages have abilities and talents to improve their Mana regeneration based on their Spirit.
+
+Weapon Stats
+These stats will directly affect your weapon damage.
+Armor Penetration
+Armor Penetration was best known as a valuable stat in Wrath of the Lich King, but the mechanic first started as an obscure one on a handful of items in WoW Classic.
+
+Items such as Bonereaver's Edge Bonereaver's Edge and Badge of the Swarmguard Badge of the Swarmguard, or talents like  Serrated Blades, simply let you avoid a flat amount of the enemy's armor.
+Attack Speed
+Attack speed affects how frequently your characters will auto-attack. For classes such as Rogues that generate a fair amount of damage through white auto-attacks, Attack Speed is important.
+
+Formula for calculating how an attack speed buff will modify your overall number:
+Attack speed provided by current setup / ((Percent change provided by a new item, talent, etc / 100) + 1 )
+Weapon speed directly affects Attack Speed. The lower the number on your weapon, the faster it attacks. Faster weapons usually hit for less damage than slower weapons.
+Some abilities, such as the Rogue  Slice and Dice and  Blade Flurry, increase Attack Speed.
+Select consumables, enchants, and item procs also increase Attack Speed.
+Attack Power
+Attack Power increases your base melee damage-per-second (DPS) by 1 point for every 14 Attack Power.
+
+You can gain Attack Power with either Strength or Agility, depending on your class, or with raw Attack Power as a stat provided by certain pieces of gear.
+Critical Strike Chance
+Critical Strike Chance increases your chance to strike a critical hit with weapon-based attacks on an enemy. A critical hit deals double its normal damage.
+You can gain Critical Strike chance with Agility, for weapon-based classes, or with raw Critical Strike as a stat provided by certain pieces of gear.
+Hit Chance
+All attacks have a chance to miss an enemy of a similar or higher level. Hit chance is a stat that exists to mitigate and eventually nullify this. The amount of Hit Chance needed to not miss any attacks is called the "Hit Cap".
+
+You can gain Hit chance as a stat from severe pieces of gear.
+Against level 60 targets, you need a total of 5% Hit Chance to never miss a target.
+Dual Wielders need 24% Hit Chance to never miss on every single auto-attack.
+Against level 63 (or Boss level) targets, you need a total of 9% Hit Chance to never miss a target.
+Dual Wielders need 25% Hit Chance to never miss on every single auto-attack.
+
+
+Caster Stats
+These stats will directly affect spell casts or your overall Mana.
+Spell Power (Damage)
+Spell Power increases the damage of all your offensive spells.
+Spell Power also works on healing spells, which have their own increasing stats as well.
+Spell Power can be divided in Spell Damage, which increases the damage of all your spells, regardles of their school, or Elemental Spell Damage (such as Shadow Spell Damage, demonstrated in items such as Formula: Enchant Gloves - Shadow Power Formula: Enchant Gloves - Shadow Power, which only increase spell damage of one specific school of magic).
+Healing Power
+Healing Power increases how much your healing spells will heal your target.
+Healing Power does not work on offensive spells, which have their own offensive stats.
+
+Report Ad
+Remove All Ads
+Spell Critical Strike Chance
+Spell Critical Strike increases your chance to strike a critical hit with spells. A critical spell hit deals 150% of a spell's normal damage.
+Many specializations have talents to increase how much a Spell Critical hits for, up to double of a spell's normal damage.
+You can gain Spell Critical Strike with Intellect, or with raw Spell Critical Strike chance provided by certain pieces of gear.
+Spell Hit Chance
+All spells have a chance to miss an enemy of similar or higher level. Spell Hit Chance mitigates and eventually nullifies this. The amount of Spell Hit needed to not miss any spells is called the "Spell Hit Cap".
+Against level 60 targets, you need a total of 3% Spell Hit Chance to not miss a Spell.
+Against level 63 (or Boss level) targets, you need a total of 16% Spell Hit Chance to not miss a Spell.
+Regardless of the amount of Spell Hit you have, spells have a innate 1% chance of being resisted. This chance cannot be mitigated by any means.
+Mana/5 Seconds
+This stat will regenerate a certain amount of Mana every 5 seconds.
+Mana/5 is independent of Spirit and the 5-Second rule, working even while constantly casting in combat.
+Spell Penetration
+Spell Penetration reduces the target's resistances to your spells. It works differently from Spell Hit, as it only works on targets with resistances and will not reduce a target's resistance below zero.
+Due to the way Spell Penetration works, it is considered to be a PvP stat. It was intended as a way to help players counter resistances from things like Mark of the Wild or Paladin Auras.
+In PvE, targets have an innate resistance to spells that cannot be countered by Spell Penetration or any other stat. Very few bosses actually have a substantial amount of resistances that can be overcome with Spell Penetration.
+Mitigation Stats
+These stats exist to help you reduce incoming damage. While most of them are useful only for tanks, some of them can be useful for all classes depending on encounters.
+Resistances
+Resistances are a stat meant to mitigate incoming magical damage.
+There are five types of resistances in Classic: Fire Resistance, Frost Resistance, Arcane Resistance, Nature Resistance and Shadow Resistance.
+Holy Resistance was not a stat back in Classic - Nor players, nor NPC enemies, can resist Holy spells.
+Resistance is a very situational stat. While it was useless for most encounters, a few encounters require a significant amount of resistance:
+Fire Resistance is used through Molten Core and Blackwing Lair, being a huge requirement for Ragnaros;
+Nature Resistance is heavily used in Ahn'Qiraj, especially for the Princess Huhuran encounter;
+Frost and Shadow Resistance see uses in Naxxramas - Shadow against Loatheb, and Frost against Sapphiron.
+The Resistance Cap is 315, for 75% reduced spell damage against spell casts of that school from a level 63 (or Boss) enemy.
+Resistance also had a Damage Absorption component. It was useful for melee DPS to wear resistance gear and soak harmful effects on some fights, such as Princess Huhuran.
+The Damage Absorption formula is
+Soaked damage per HP point = 1 / (1 - (resistance / (5 * caster level)) * 0.75) - 1
+The more resistance you have, the more effective each further point becomes.
+Defense
+Defense is an attribute that helps prevent Physical damage by reducing the chance to be hit or critically hit.
+Like Weapon Skill, you need to level your Defense Rating - By letting enemy NPCs hit you. The default defense cap is 300 for level 60 players.
+Every point of Defense gives 0.04% dodge, 0.04% parry, 0.04% block, 0.04% reduced chance to be hit, 0.04% reduced chance to be crit.
+At 300 Defense, you still have a chance of being critically hit/crushed against Boss (level 63) mobs. Tanks need to increase their Defense Rating to avoid this.
+At level 60, you need 440 Defense Rating to avoid being critically hit by level 63 mobs. This requires a fully leveled 300 innate Defense, and an additional 140 Defense Rating from gear.
+This may be difficult to reach and focusing gear with +defense may leave your gear lacking in other important tank stats. Consider striking a balance between melee mitigation (Stamina, Armor), resistance gear when useful, and threat gear (Hit Chance, Crit Chance) instead of prioritizing the defense soft cap.
+
+Report Ad
+Remove All Ads
+Crushing Blows
+The Crushing Blows formula is
+(for percentage): ((Attacker weapon Skill - Defender defence skill)*2)-15
+Defense from gear does not directly reduce Crushing Blows, though it does help by adding to your avoidance. Crushing Blow chance can only be reduced by having enough avoidance (block/dodge/parry/miss) to push them off the attack table.
+Armor
+Armor reduces how much Physical damage you take when a player or NPC hits you.
+There are four types of Armor that players can equip. From the weakest (least amount of Armor) to the strongest (most amount of Armor):
+Cloth - Mage, Priest, Warlock
+Leather - Druid, Rogue
+Mail - Hunter, Shaman
+Plate - Paladin, Warrior
+Additionally, Paladins, Shaman and Warrior can equip Shields, an off-hand slot that further increases their Armor.
+Although Paladins and Warriors have more innate Armor thanks to their ability to equip Plate Armor and Shields, Druids in Bear Form receive significantly increased value from Armor.
+The Armor Cap against level 63 (or Boss) mobs is 17,265. The Armor Cap against level 60 mobs (or players) is 16500.
+Block
+Block is the ability of a shield to absorb incoming Physical damage, in addition to its Armor rating. When a Paladin, Warrior or Shaman have a Shield equipped, they gain a chance to Block incoming Physical attacks.
+Block Rating increases the chance of you blocking an attack, on top of the base amount of 5%.
+You're only able to Block an attack when facing your attacker.
+Block formula:
+5% base + Block Rating + talents + ((Defense skill - enemy's weapon skill) * 0.04)
+Block Value
+Block Rating and Block Value can be easily confused as they sound similar and affect block, but as you can see on items like The Face of Death The Face of Death they are separate things.
+Block Value increases the amount of damage mitigated per blocked attack.
+Strength increases your Block Value.
+Block Value and Block Rating can be easily mixed up to similar names and purposes.
+Dodge
+Dodge increases the chance to completely avoid a Physical attack.
+Dodge can be gained with Agility for all classes, as well as raw Dodge value in select pieces of gear.
+One point of Defense adds 0.04% Dodge.
+Weapon Skill reduces the enemy's chance to dodge your attacks by .04% per point.
+Night Elves have a innate 1% chance to Dodge thanks to  Quickness.
+You're only able to Dodge an attack when facing your attacker.
+Here is the formula for calculating your character's dodge percentage:
+Base dodge + (Agility / Agility to Dodge ratio) + Talent bonuses + Race Bonuses + Item Bonuses + ((Defense skill - Enemy's attack skill) * 0.04)
+Your class affects your base dodge and Agility to Dodge ratio:
+Classes	Base	Agility to Dodge
+Druid	0.9%	20
+Hunter	0.0%	26.5
+Mage	3.2%	19.444
+Paladin	0.7%	19.767
+Priest	3.0%	20
+Rogue	0.0%	14.5
+Shaman	1.7%	19.697
+Warlock	2.0%	20
+Warrior	0.0%	20
+Parry
+Parry increases the chance to completely mitigate a Physical attack. A successful Parry nullifies the attack dealt, and also reduces the swing timer of the defender's next attack.
+Only Hunters, Paladins, Rogues and Warriors can Parry attacks. Enhancement Shaman have a talent that also allows them to Parry attacks.
+One point of Defense increases the chance to parry by 0.04%
+When an attack is Parried, the defender swings its weapon 40% faster for its next attack.
+You're only able to Parry an attack when facing your attacker.
+Formula for chance to Parry:
+5% base + parry rating + parry talents + ((Defense skill - enemy's weapon skill) * 0.04)
