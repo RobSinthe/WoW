@@ -1,0 +1,39 @@
+Stat.Stamina
+Stat.Strength
+Stat.Agility
+Stat.Intellect
+Stat.Spirit
+Stat.AttackPower
+Stat.Defence
+Stat.Armor
+Stat.SpellPower
+Stat.HealingPower
+Stat.CriticalChance
+Stat.Hit
+Stat.Block
+Stat.Parry
+Stat.Dodge
+
+Damage.Physical
+Damage.Fire
+Damage.Shadow
+Damage.Nature
+Damage.Frost
+
+Resistance.Physical (Stat.Armor)
+Reistance.Fire
+Reistance.Shadow
+Reistance.Nature
+Reistance.Frost
+
+Crit = 200% damage
+Spell crit = 150% damage
+Stamina = 10hp/point
+Block reduce damage by 1 per 20 points of strength (req shield)
+Dodge = 1% chance to dodge all damage per 20 points of agility
+Intellect = 15 mana per point, also 1% Spell Critical strike chance per 60 points
+Spirit = Regen = spirit/4 + 15 every 2 sec after 5 sec since last spellcast/out of combat
+Parry = A successful Parry nullifies the attack dealt, and also reduces the swing timer of the defender's next attack by 40%
+Defence = 1 point = 0.04% dodge, 0.04% parry, 0.04% block, 0.04% reduced chance to be hit, 0.04% reduced chance to be cri
+Attackpower = 2 AP per point in Strenght
+Attack speed  (auto attacks) autoswing timer - (timer * haste%)
