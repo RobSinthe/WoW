@@ -182,14 +182,7 @@ float UStatComponent::GetStatValue(FGameplayTag StatTag, EStatTarget Target) con
 	return 0.f;
 }
 
-int32 UStatComponent::GetPointsSpentOnStat(FGameplayTag StatTag) const
-{
-	if (const FStat* Attr = Stats.Find(StatTag))
-	{
-		return Attr->PointsSpent;
-	}
-	return 0.f;
-}
+
 
 
 // --- UpdateStats and apply levelpoints --- 
@@ -426,60 +419,91 @@ const float Roll = FMath::FRand();
 
 if (Roll < Dodge)
 {
-	OnDamageResolved.Broadcast(EDamageOutcome::Dodged);
+    OnDamageResolved.Broadcast(EDamageOutcome::Dodged);
     return;
 }
 
 if (Roll < Dodge + Parry)
 {
-	OnDamageResolved.Broadcast(EDamageOutcome::Parried);
+    OnDamageResolved.Broadcast(EDamageOutcome::Parried);
     return;
 }
 
 float BlockDamageReduction = 0.f;
+EDamageOutcome DamageOutcome = EDamageOutcome::Hit;
 
 if (Roll < Dodge + Parry + Block)
 {
     BlockDamageReduction = 0.5f;
-	OnDamageResolved.Broadcast(EDamageOutcome::Blocked);
+    DamageOutcome = EDamageOutcome::Blocked;
 }
 
-	
-    // --- Roll crit once for the whole hit ---
-    bool bCrit = false;
-    if (Stats.CritChance > 0.f && FMath::FRand() <= Stats.CritChance)
+
+// --- Roll crit once for the whole hit ---
+bool bCrit = false;
+
+if (Stats.CritChance > 0.f &&
+    FMath::FRand() <= Stats.CritChance)
+{
+    bCrit = true;
+
+    // Only replace the outcome if it wasn't blocked.
+    if (DamageOutcome == EDamageOutcome::Hit)
     {
-        bCrit = true;
+        DamageOutcome = EDamageOutcome::CriticalHit;
     }
-    // --- Loop over damage parts ---
-    for (const FDamageInfo& Info : DamageList)
+}
+
+
+// --- Loop over damage parts ---
+for (const FDamageInfo& Info : DamageList)
+{
+    const bool bIsDoT =
+        Info.DamageType.GetTagName().ToString().Contains("DoT");
+
+    float IncomingDamage =
+        bIsDoT
+        ? Info.Magnitude
+        : Info.Magnitude * Stats.BaseDamage;
+
+    float ArmorReduction = 0.f;
+
+    if (Info.DamageType.MatchesTag(
+        FGameplayTag::RequestGameplayTag(
+            FName("Damage.Physical"))))
     {
-        bool bIsDoT = Info.DamageType.GetTagName().ToString().Contains("DoT");
+        ArmorReduction = CalculateDamageReduction(
+            Armor,
+            ArmorCapValue,
+            DamageReductionCap);
+    }
 
-        // Base damage
-        float IncomingDamage = bIsDoT ? Info.Magnitude : Info.Magnitude * Stats.BaseDamage;
+    const float AfterBlock =
+        IncomingDamage * (1.f - BlockDamageReduction);
 
-        // Armor reduction (physical only)
-        float ArmorReduction = 0.f;
-        if (Info.DamageType.MatchesTag(FGameplayTag::RequestGameplayTag(FName("Damage.Physical"))))
-        {
-            ArmorReduction = CalculateDamageReduction(Armor, ArmorCapValue, DamageReductionCap);
-        }
-		float AfterBlock = IncomingDamage * (1.f - BlockDamageReduction);
-        float AfterArmor = AfterBlock * (1.f - ArmorReduction);
+    const float AfterArmor =
+        AfterBlock * (1.f - ArmorReduction);
 
+    float ResistanceValue =
+        GetResistanceForDamage(Info.DamageType);
 
-        // Resistance reduction
-        float ResistanceValue = GetResistanceForDamage(Info.DamageType);
-        float ResistReduction = CalculateDamageReduction(ResistanceValue, ResistCapValue, DamageReductionCap);
-        float AfterResist = AfterBlock * (1.f - ResistReduction);
+    float ResistReduction =
+        CalculateDamageReduction(
+            ResistanceValue,
+            ResistCapValue,
+            DamageReductionCap);
 
-        // Apply crit if rolled
-        float FinalDamage = bCrit ? AfterResist * Stats.CritMultiplier : AfterResist;
+    const float AfterResist =
+        AfterArmor * (1.f - ResistReduction);
 
-        // Clamp and add
-        FinalDamage = FMath::Max(FinalDamage, 0.f);
-        TotalDamage += FinalDamage;
+    float FinalDamage =
+        bCrit
+        ? AfterResist * Stats.CritMultiplier
+        : AfterResist;
+
+    FinalDamage = FMath::Max(FinalDamage, 0.f);
+
+    TotalDamage += FinalDamage;
     
 
         // Debug
@@ -534,7 +558,7 @@ if (Roll < Dodge + Parry + Block)
     }
 //
     // --- Fire delegate once per hit ---
-    OnDamageTaken.Broadcast(TotalDamage, bCrit);
+    OnDamageTaken.Broadcast(TotalDamage, DamageOutcome);
 }
 
 
