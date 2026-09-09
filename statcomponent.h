@@ -3,12 +3,10 @@
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
 #include "GameplayTagContainer.h"
-#include "RFGameplayComponent.generated.h"
+#include "StatComponent.generated.h"
 
-class URFAction;		 // forward declare
-class URFAttributeSet;     // forward declare
-struct FActionEventData; // forward declaration
-class ARFPlayerState;
+class UStatSet;     // forward declare
+class APlayerState;
 
 UENUM(BlueprintType)
 enum class EModifierType : uint8
@@ -18,7 +16,7 @@ enum class EModifierType : uint8
 };
 
 UENUM(BlueprintType)
-enum class EAttributeTarget : uint8
+enum class EStatTarget : uint8
 {
 	CurrentValue  UMETA(DisplayName = "Current Value"),
 	MaxValue      UMETA(DisplayName = "Max Value"),
@@ -26,7 +24,7 @@ enum class EAttributeTarget : uint8
 };
 
 USTRUCT(BlueprintType)
-struct FAttribute
+struct FStat
 {
 	GENERATED_BODY()
 
@@ -34,7 +32,7 @@ struct FAttribute
 	float BaseValue = 100.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float PermanentBase = 0.f; // Base + attribute points only (no item bonuses)
+	float PermanentBase = 0.f; // Base + stat points only (no item bonuses)
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float PermanentMax = 100.f;  // 👈 put this before MaxValue
@@ -47,9 +45,9 @@ struct FAttribute
 
 	int32 PointsSpent = 0;
 	
-	FAttribute() = default;
+	FStat() = default;
 
-	FAttribute(float InBase)
+	FStat(float InBase)
 		: BaseValue(InBase),
 		  PermanentBase(InBase),
 		  PermanentMax(InBase),
@@ -61,18 +59,18 @@ struct FAttribute
 
 
 USTRUCT(BlueprintType)
-struct FAttributeModifier
+struct FStatModifier
 {
 	GENERATED_BODY()
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FGameplayTag AttributeTag;
+	FGameplayTag StatTag;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EModifierType ModifierType = EModifierType::Additive;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	EAttributeTarget Target = EAttributeTarget::CurrentValue;
+	EStatTarget Target = EStatTarget::CurrentValue;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float Magnitude = 0.f;
@@ -86,10 +84,8 @@ struct FDamageInfo
 	FDamageInfo()
 		: Magnitude(0.f)
 		, DamageType(FGameplayTag::RequestGameplayTag(TEXT("Damage.Physical")))
-		, InstigatorRFGC(nullptr)
+		, InstigatorStatComp(nullptr)
 		, CritMultiplier(1.f)
-		, PoiseMultiplier(0.f)
-		, bApplyPoiseDamage(true)
 		, bForceCrit(false)
 	{}
 
@@ -101,20 +97,13 @@ struct FDamageInfo
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGameplayTag DamageType;
 
-	// Optional: override default instigator attributes for this hit
+	// Optional: override default instigator Stats for this hit
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	class URFGameplayComponent* InstigatorRFGC = nullptr;
+	class UStatComponent* InstigatorStatComp = nullptr;
 
 	// Optional: apply custom multipliers
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	float CritMultiplier = 1.f;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float PoiseMultiplier = 0.f;
-
-	// Optional but very useful
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bApplyPoiseDamage = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bForceCrit = false;
@@ -130,7 +119,7 @@ struct FTimedEffect
 	FName EffectID = NAME_None;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	FGameplayTag AttributeTag; // Target attribute
+	FGameplayTag StatTag; // Target Stat
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	FGameplayTag DamageTypeTag; // Damage type (optional)
@@ -154,7 +143,7 @@ struct FTimedEffect
 	bool bIsDOTorHOT = false;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	URFGameplayComponent* InstigatorRFGC = nullptr;
+	UStatComponent* InstigatorStatComp = nullptr;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	EModifierType ModifierType = EModifierType::Additive; // pick your default
@@ -206,37 +195,36 @@ struct FInstigatorStats
 	{}
 };
 
-namespace RFAttributeTags
+namespace StatTags
 {
-	static const FGameplayTag Health      = FGameplayTag::RequestGameplayTag("Attribute.Health");
-	static const FGameplayTag Poise      = FGameplayTag::RequestGameplayTag("Attribute.Poise");
-	static const FGameplayTag Damage      = FGameplayTag::RequestGameplayTag("Attribute.Damage");
-	static const FGameplayTag Armor       = FGameplayTag::RequestGameplayTag("Attribute.Armor");
-	static const FGameplayTag CritChance  = FGameplayTag::RequestGameplayTag("Attribute.CritChance");
-	static const FGameplayTag CritDamage  = FGameplayTag::RequestGameplayTag("Attribute.CritDamage");
-	static const FGameplayTag LifeSteal   = FGameplayTag::RequestGameplayTag("Attribute.LifeSteal");
+	static const FGameplayTag Health      = FGameplayTag::RequestGameplayTag("Stat.Health");
+	static const FGameplayTag Poise      = FGameplayTag::RequestGameplayTag("Stat.Poise");
+	static const FGameplayTag Damage      = FGameplayTag::RequestGameplayTag("Stat.Damage");
+	static const FGameplayTag Armor       = FGameplayTag::RequestGameplayTag("Stat.Armor");
+	static const FGameplayTag CritChance  = FGameplayTag::RequestGameplayTag("Stat.CritChance");
+	static const FGameplayTag CritDamage  = FGameplayTag::RequestGameplayTag("Stat.CritDamage");
+	static const FGameplayTag LifeSteal   = FGameplayTag::RequestGameplayTag("Stat.LifeSteal");
 }
 
-// 🔔 Delegate type: fires whenever an attribute changes
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnAttributeChanged, FGameplayTag, AttributeTag, float, NewValue);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDeath, URFGameplayComponent*, Instigator);
+// 🔔 Delegate type: fires whenever an Stat changes
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnStatChanged, FGameplayTag, StatTag, float, NewValue);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDeath, UStatComponent*, Instigator);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimedEffectAdded, FTimedEffect, Effect);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimedEffectRemoved, FTimedEffect, Effect);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnTimedEffectStackChanged, FName, EffectID, int32, NewStackCount, float, Duration);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTagChangedBP);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPoiseBreakBP);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnTagChanged, FGameplayTag /*Tag*/, bool /*bAdded*/);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamageTaken, float, Damage, bool, bCrit);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelUp, int32, NewLevel);
 
 
 UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class RAVENSFALL2_API URFGameplayComponent : public UActorComponent
+class WOW_API UStatComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
 public:
-	URFGameplayComponent();
+	UStatComponent();
 
 	//Cached references
 	UPROPERTY()
@@ -245,145 +233,65 @@ public:
 	UPROPERTY()
 	ARFPlayerState* CachedPlayerState;
 
-	UPROPERTY()
-	AController* CachedController;
-
-	UPROPERTY()
-	USkeletalMeshComponent* CachedMesh;
-
-	// --- Action Registry ---
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Actions")
-	TArray<TSubclassOf<URFAction>> StartupActions;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats")
+	URFStatSet* StatSet;
 	
-	UPROPERTY(VisibleAnywhere, Instanced, Category="Actions")
-	TArray<URFAction*> GrantedActions;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Actions")
-	TArray<URFAction*> ActiveActions;
-
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Attributes")
-	URFAttributeSet* AttributeSet;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Poise Settings")
-	float PoiseRegenDelay = 2.0f;
-	
-	//Calculate the max healthvalue * PoiseThreshold and set the poise attribute value to that (MAYBE)
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Poise Settings")
-	float PoiseThreshold = 0.25f;
-	
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Poise Settings")
-	FGameplayTag PoiseBreakEventTag;
-
-	UFUNCTION(BlueprintCallable, Category="Actions")
-	URFAction* GrantAction(TSubclassOf<URFAction> ActionClass);
-
-	UFUNCTION(BlueprintCallable, Category="Actions")
-	bool RemoveAction(TSubclassOf<URFAction> ActionClass);
-
-	UFUNCTION(BlueprintCallable)
-	bool TryActivateAction(FGameplayTag ActivationTag);
-
-	UFUNCTION(BlueprintCallable, Category="Actions")
-	void SendActionEvent(const FActionEventData& EventData);
-
-	//Initialize Avatar info etc.
-	void InitActionInfo(URFAction* Action);
-	void RefreshCachedRefs();
 
 	//Xp settings
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="LevelScaling")
 	float LevelUpGrowthFactor = 0.1f; // +10% max XP per level
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="LevelScaling")
-	int32 SpendablePointsPerLevel = 5.; // Ponts granted per levelup
+	int32 SpendablePointsPerLevel = 1.; // Ponts granted per levelup
 
 	// Current player level
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Attributes")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Stats")
 	int32 CurrentLevel = 1;
 
-	UFUNCTION(BlueprintCallable, Category="Actions")
-	bool EndAction(FGameplayTag ActionTag);
-
 	UPROPERTY()
-	TMap<FGameplayTag, int32> ItemModifiedAttributes;
-	
-	UFUNCTION(BlueprintCallable, Category="Gameplay")
-	void ApplySlomoFX(USkeletalMeshComponent* Mesh, float NewRate, float Duration);
+	TMap<FGameplayTag, int32> ItemModifiedStats;
+
 
 
 protected:
 	
 	virtual void BeginPlay() override;
 	void RebuildResistanceCache();
-	URFAction* GetActionByTag(FGameplayTag ActionTag) const;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TMap<FGameplayTag, FAttribute> Attributes;
+	TMap<FGameplayTag, FStat> Stats;
 
 	// --- Damagetype to resistances cache ---
 	UPROPERTY()
 	TMap<FGameplayTag, float> DamageTagToResistanceCache;
 
-	UPROPERTY(BlueprintReadWrite, Category="Attributes|TimedEffects")
+	UPROPERTY(BlueprintReadWrite, Category="Stats|TimedEffects")
 	TArray<FTimedEffect> ActiveTimedEffects;
 	
 	// Tags currently owned by this component
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Gameplay|Tags")
 	FGameplayTagContainer OwnedTags;
 
-	// Tracks inputs currently held: Tag → PressTime
-	UPROPERTY(VisibleAnywhere, Category="Actions|Input")
-	TMap<FGameplayTag, float> CurrentlyHeldInputs;
-	
-	// Reset Slomo effect
-	void ResetAnimRate();
-	FTimerHandle AnimRateTimerHandle;
-	TWeakObjectPtr<USkeletalMeshComponent> TargetMesh;
-
-	float OriginalRate = 1.0f;
-
-
-private:
-	UPROPERTY()
-	TMap<FGameplayTag, URFAction*> ActionMap;
-
-	UPROPERTY()
-	TMap<FGameplayTag, float> ActionCooldowns;
-	
-	FTimerHandle PoiseRegenDelayHandle;
-	bool bPoiseBroken = false;
-
 public:
-
-	// Called by your input binding when an input is pressed
-	UFUNCTION(BlueprintCallable, Category="Action|Input")
-	void HandleInputPressed(FGameplayTag InputTag);
-
-	// Called by your input binding when an input is released
-	UFUNCTION(BlueprintCallable, Category="Action|Input")
-	void HandleInputReleased(FGameplayTag InputTag);
-
-	UFUNCTION()
-	void EndActionInstance(URFAction* Action);
 	
-	// Apply a modifier to an attribute
-	UFUNCTION(BlueprintCallable, Category="Attributes", meta=(ToolTip="Applies a modifier to an attribute. Current, Max Or Both Should be used on Attributes Like Health,Stamina etc. For flat attributes use Both"))
-	void ApplyAttributeModifier(const FAttributeModifier& Modifier);
+	// Apply a modifier to an Stat
+	UFUNCTION(BlueprintCallable, Category="Stats", meta=(ToolTip="Applies a modifier to an Stat. Current, Max Or Both Should be used on Stats Like Health,Stamina etc. For flat Stats use Both"))
+	void ApplyStatModifier(const FStatModifier& Modifier);
 	void AddItemModifierTag(const FGameplayTag& Tag);
 	void RemoveItemModifierTag(const FGameplayTag& Tag);
 
 	// C++ only, not Blueprint-exposed
-	FAttribute* GetAttributeRef(FGameplayTag AttributeTag);
+	FStat* GetStatRef(FGameplayTag StatTag);
 	
-	// Get the current value of an attribute
-	UFUNCTION(BlueprintCallable, Category="Attributes")
-	float GetAttributeValue(FGameplayTag AttributeTag, EAttributeTarget Target = EAttributeTarget::CurrentValue) const;
+	// Get the current value of an Stat
+	UFUNCTION(BlueprintCallable, Category="Stats")
+	float GetStatValue(FGameplayTag StatTag, EStatTarget Target = EStatTarget::CurrentValue) const;
 
-	UFUNCTION(BlueprintCallable, Category="Attributes")
-	int32 GetPointsSpentOnAttribute(FGameplayTag AttributeTag) const;
+	UFUNCTION(BlueprintCallable, Category="Stats")
+	int32 GetPointsSpentOnStat(FGameplayTag StatTag) const;
 
-	UFUNCTION(BlueprintCallable, Category="Attributes")
-	int32 ApplyPointToAttribute(const FGameplayTag& AttributeTag, int32 Amount, EAttributeTarget Target);
+	UFUNCTION(BlueprintCallable, Category="Stats")
+	int32 ApplyPointToStat(const FGameplayTag& StatTag, int32 Amount, EStatTarget Target);
 
 	//Clear all ItemModifiers
 	void ClearItemModifiers();
@@ -393,9 +301,9 @@ public:
 
 
 
-	// Update attributes (clamp values)
+	// Update Stats (clamp values)
 	UFUNCTION(BlueprintCallable)
-	void UpdateAttributes(bool bClampToMax /*= true*/);
+	void UpdateStats(bool bClampToMax /*= true*/);
 
 	float GetResistanceForDamage(const FGameplayTag& DamageTag);
 
@@ -417,29 +325,26 @@ public:
 	float CalculateDamageReduction(float Value, float CapAtValue, float MaxReduction) const;
 	
 	// New function to apply damage
-	UFUNCTION(BlueprintCallable, Category="Attributes")
+	UFUNCTION(BlueprintCallable, Category="Stats")
 	void ApplyDamage(const TArray<FDamageInfo>& DamageList);
-	// PoiseManagement
-	void ApplyPoiseDamage(float Amount, URFGameplayComponent* InstigatorGC);
-	void RestorePoise();
 
 
-	UFUNCTION(BlueprintCallable, Category="Gameplay|Attributes")
+	UFUNCTION(BlueprintCallable, Category="Gameplay|Stats")
 	void ApplyPeriodicEffect(
-		FGameplayTag AttributeTag,
+		FGameplayTag StatTag,
 		float Magnitude,
 		float Duration,
 		float TickInterval,
 		EModifierType ModifierType,
-		URFGameplayComponent* InstigatorRFGC,
+		UStatComponent* InstigatorRFGC,
 		bool bIsDOTorHOT,
 		FName EffectID = NAME_None,     // Optional ID for UI/datatable
 		FGameplayTag DamageTypeTag = FGameplayTag(), // optional, default empty
 		FGameplayTag WhileActiveTag = FGameplayTag() // optional, default empty used for eg.State.Burning
 	);
 
-	UFUNCTION(BlueprintCallable, Category="Attributes|TimedEffects")
-	void RemovePeriodicEffectsByTag(FGameplayTag AttributeTag);
+	UFUNCTION(BlueprintCallable, Category="Stats|TimedEffects")
+	void RemovePeriodicEffectsByTag(FGameplayTag StatTag);
 
 	//Gameplay tags section ---
 
@@ -456,10 +361,10 @@ public:
 	void EndPlay(EEndPlayReason::Type EndPlayReason);
 
 	// 🔔 Delegate exposed to Blueprints
-	UPROPERTY(BlueprintAssignable, Category="Attributes")
-	FOnAttributeChanged OnAttributeChanged;
+	UPROPERTY(BlueprintAssignable, Category="Stats")
+	FOnStatChanged OnStatChanged;
 	
-	UPROPERTY(BlueprintAssignable, Category="Attributes")
+	UPROPERTY(BlueprintAssignable, Category="Stats")
 	FOnDeath OnDeath;
 
 	UPROPERTY(BlueprintAssignable, Category="Dots/Hots")
@@ -482,10 +387,9 @@ public:
 	
 	FOnTagChanged OnTagChanged;
 
-	UPROPERTY(BlueprintAssignable, Category="Attributes")
+	UPROPERTY(BlueprintAssignable, Category="Stats")
 	FOnLevelUp OnLevelUp;
 	
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	bool bIsDead = false;
 
