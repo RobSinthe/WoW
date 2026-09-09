@@ -23,6 +23,15 @@ enum class EStatTarget : uint8
 	Both          UMETA(DisplayName = "Both")
 };
 
+enum class EDamageOutcome
+{
+    Hit,
+    CriticalHit,
+    Dodged,
+    Parried,
+    Blocked
+};
+
 USTRUCT(BlueprintType)
 struct FStat
 {
@@ -52,8 +61,7 @@ struct FStat
 		  PermanentBase(InBase),
 		  PermanentMax(InBase),
 		  MaxValue(InBase),
-		  CurrentValue(InBase),
-		  PointsSpent(0)
+		  CurrentValue(InBase)
 	{}
 };
 
@@ -198,7 +206,6 @@ struct FInstigatorStats
 namespace StatTags
 {
 	static const FGameplayTag Health      = FGameplayTag::RequestGameplayTag("Stat.Health");
-	static const FGameplayTag Poise      = FGameplayTag::RequestGameplayTag("Stat.Poise");
 	static const FGameplayTag Damage      = FGameplayTag::RequestGameplayTag("Stat.Damage");
 	static const FGameplayTag Armor       = FGameplayTag::RequestGameplayTag("Stat.Armor");
 	static const FGameplayTag CritChance  = FGameplayTag::RequestGameplayTag("Stat.CritChance");
@@ -214,7 +221,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnTimedEffectRemoved, FTimedEffect,
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FOnTimedEffectStackChanged, FName, EffectID, int32, NewStackCount, float, Duration);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnTagChangedBP);
 DECLARE_MULTICAST_DELEGATE_TwoParams(FOnTagChanged, FGameplayTag /*Tag*/, bool /*bAdded*/);
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamageTaken, float, Damage, bool, bCrit);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnDamageTaken, float, Damage, Enum, EDamageOutcome);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnLevelUp, int32, NewLevel);
 
 
