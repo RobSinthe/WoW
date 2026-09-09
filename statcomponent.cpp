@@ -397,19 +397,21 @@ void UStatComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
         return;
 
     float TotalDamage = 0.f;
-	float TotalPoiseDamage = 0.f;
     float Armor = GetStatValue(RFStatTags::Armor);
+	float Dodge = GetStatValue(RFStatTags::Dodge);
+	float Parry = GetStatValue(RFStatTags::Parry);
+	float Block = GetStatValue(RFStatTags::Block);
 
     // --- Instigator stats (one instigator per DamageList) ---
-    UStatComponent* InstigatorGC = DamageList[0].InstigatorStatComp;
+    UStatComponent* InstigatorStatComp = DamageList[0].InstigatorStatComp;
     FInstigatorStats Stats;
 
-    if (InstigatorGC)
+    if (InstigatorStatComp)
     {
-        Stats.BaseDamage       = InstigatorGC->GetStatValue(RFStatTags::Damage);
-        Stats.CritChance       = InstigatorGC->GetStatValue(RFStatTags::CritChance);
-        Stats.CritMultiplier   = InstigatorGC->GetStatValue(RFStatTags::CritDamage);
-        Stats.LifeStealPercent = InstigatorGC->GetStatValue(RFStatTags::LifeSteal);
+        Stats.BaseDamage       = InstigatorStatComp->GetStatValue(RFStatTags::Damage);
+        Stats.CritChance       = InstigatorStatComp->GetStatValue(RFStatTags::CritChance);
+        Stats.CritMultiplier   = InstigatorStatComp->GetStatValue(RFStatTags::CritDamage);
+        Stats.LifeStealPercent = InstigatorStatComp->GetStatValue(RFStatTags::LifeSteal);
     }
     else
     {
@@ -419,6 +421,30 @@ void UStatComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
         Stats.LifeStealPercent = 0.f;
     }
 
+// --- Roll avoidance/block once for the whole hit ---
+const float Roll = FMath::FRand();
+
+if (Roll < Dodge)
+{
+	OnDamageResolved.Broadcast(EDamageOutcome::Dodged);
+    return;
+}
+
+if (Roll < Dodge + Parry)
+{
+	OnDamageResolved.Broadcast(EDamageOutcome::Parried);
+    return;
+}
+
+float BlockDamageReduction = 0.f;
+
+if (Roll < Dodge + Parry + Block)
+{
+    BlockDamageReduction = 0.5f;
+	OnDamageResolved.Broadcast(EDamageOutcome::Blocked);
+}
+
+	
     // --- Roll crit once for the whole hit ---
     bool bCrit = false;
     if (Stats.CritChance > 0.f && FMath::FRand() <= Stats.CritChance)
@@ -439,12 +465,14 @@ void UStatComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
         {
             ArmorReduction = CalculateDamageReduction(Armor, ArmorCapValue, DamageReductionCap);
         }
-        float AfterArmor = IncomingDamage * (1.f - ArmorReduction);
+		float AfterBlock = IncomingDamage * (1.f - BlockDamageReduction);
+        float AfterArmor = AfterBlock * (1.f - ArmorReduction);
+
 
         // Resistance reduction
         float ResistanceValue = GetResistanceForDamage(Info.DamageType);
         float ResistReduction = CalculateDamageReduction(ResistanceValue, ResistCapValue, DamageReductionCap);
-        float AfterResist = AfterArmor * (1.f - ResistReduction);
+        float AfterResist = AfterBlock * (1.f - ResistReduction);
 
         // Apply crit if rolled
         float FinalDamage = bCrit ? AfterResist * Stats.CritMultiplier : AfterResist;
@@ -452,20 +480,14 @@ void UStatComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
         // Clamp and add
         FinalDamage = FMath::Max(FinalDamage, 0.f);
         TotalDamage += FinalDamage;
-    	
-    	// --- Poise ---
-    	if (Info.bApplyPoiseDamage && !bIsDoT)
-    	{
-    		float PoiseDamage = FinalDamage * Info.PoiseMultiplier;
-    		TotalPoiseDamage += PoiseDamage;
-    	}
+    
 
         // Debug
         if (bDebugDamage)
         {
             UE_LOG(LogTemp, Warning, TEXT(
                 "DamageInfo: %.2f | Incoming: %.2f | Armor: %.2f | ArmorRed: %.2f | AfterArmor: %.2f | "
-                "Resist: %.2f | ResistRed: %.2f | AfterResist: %.2f | Crit: %s | LifeSteal: %.2f | FinalDamage: %.2f | TotalDamage: %.2f| TotalPoiseDamage: %.2f"),
+                "Resist: %.2f | ResistRed: %.2f | AfterResist: %.2f | Crit: %s | LifeSteal: %.2f | FinalDamage: %.2f | TotalDamage: %.2f"),
                 Info.Magnitude,
                 IncomingDamage,
                 Armor,
@@ -478,21 +500,20 @@ void UStatComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
                 bIsDoT ? 0.f : Stats.LifeStealPercent,
                 FinalDamage,
                 TotalDamage,
-                TotalPoiseDamage
             );
         }
 
         // Lifesteal (only for non-DoTs)
-        if (!bIsDoT && Stats.LifeStealPercent > 0.f && InstigatorGC)
+        if (!bIsDoT && Stats.LifeStealPercent > 0.f && InstigatorStatComp)
         {
-            FStat* InstigatorHealthPtr = InstigatorGC->GetStatRef(RFStatTags::Health);
+            FStat* InstigatorHealthPtr = InstigatorStatComp->GetStatRef(RFStatTags::Health);
             if (InstigatorHealthPtr)
             {
                 FStat& InstigatorHealth = *InstigatorHealthPtr;
                 float Heal = FinalDamage * Stats.LifeStealPercent;
                 InstigatorHealth.CurrentValue = FMath::Clamp(
                     InstigatorHealth.CurrentValue + Heal, 0.f, InstigatorHealth.MaxValue);
-                InstigatorGC->OnStatChanged.Broadcast(RFStatTags::Health, InstigatorHealth.CurrentValue);
+                InstigatorStatComp->OnStatChanged.Broadcast(RFStatTags::Health, InstigatorHealth.CurrentValue);
             }
         }
     }
@@ -508,14 +529,9 @@ void UStatComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
         if (Health.CurrentValue <= 0.f && !bIsDead)
         {
             bIsDead = true;
-            OnDeath.Broadcast(InstigatorGC);
+            OnDeath.Broadcast(InstigatorStatComp);
         }
     }
-	// Apply POISE HERE :::: IMPLEMENT THIS!!!
-	if (TotalPoiseDamage > 0.f)
-	{
-		ApplyPoiseDamage(TotalPoiseDamage, InstigatorGC);
-	}
 //
     // --- Fire delegate once per hit ---
     OnDamageTaken.Broadcast(TotalDamage, bCrit);
