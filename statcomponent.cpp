@@ -1,61 +1,56 @@
-#include "RFGameplayComponent.h"
-#include "RFAction.h"
-#include "RFAttributeSet.h"
-#include "ActionEventData.h"
+#include "StatComponent.h"
+#include "StatSet.h"
 #include "Engine/World.h"
-#include "RFPlayerState.h"
-#include "RFInventoryComponent.h"
+#include "PlayerState.h"
+#include "InventoryComponent.h"
 #include "TimerManager.h"
-#include "GameFramework/Character.h"
-#include "GameFramework/Controller.h"
-#include "Components/SkeletalMeshComponent.h"
 
-URFGameplayComponent::URFGameplayComponent(): CachedActor(nullptr), CachedPlayerState(nullptr), CachedController(nullptr), CachedMesh(nullptr),
-                                              AttributeSet(nullptr)
+UStatComponent::UStatComponent(): CachedActor(nullptr), CachedPlayerState(nullptr),
+                                              StatSet(nullptr)
 {
 	PrimaryComponentTick.bCanEverTick = true;
 	PrimaryComponentTick.bStartWithTickEnabled = true;
 
-	// Default Attributes --- Gets overridden by RFAttributeSet values if valid! --- 
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Attribute.Health")), FAttribute(100.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Attribute.Poise")), FAttribute(100.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Attribute.Energy")), FAttribute(100.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Attribute.Stamina")), FAttribute(100.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Attribute.Oxygen")), FAttribute(100.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Attribute.Damage")), FAttribute(20.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Attribute.Armor")), FAttribute(10.f));
+	// Default Stats --- Gets overridden by StatSet values if valid! --- 
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Stat.Health")), FStat(100.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Stat.Poise")), FStat(100.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Stat.Energy")), FStat(100.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Stat.Stamina")), FStat(100.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Stat.Oxygen")), FStat(100.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Stat.Damage")), FStat(20.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Stat.Armor")), FStat(10.f));
 
 	// Default Resistances
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Fire")), FAttribute(0.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Frost")), FAttribute(0.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Lightning")), FAttribute(0.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Poison")), FAttribute(0.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Shadow")), FAttribute(0.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Physical.Slash")), FAttribute(0.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Physical.Blunt")), FAttribute(0.f));
-	Attributes.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Physical.Piercing")), FAttribute(0.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Fire")), FStat(0.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Frost")), FStat(0.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Lightning")), FStat(0.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Poison")), FStat(0.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Shadow")), FStat(0.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Physical.Slash")), FStat(0.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Physical.Blunt")), FStat(0.f));
+	Stats.Add(FGameplayTag::RequestGameplayTag(FName("Resistance.Physical.Piercing")), FStat(0.f));
 }
 
-void URFGameplayComponent::BeginPlay()
+void UStatComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (AttributeSet)
+	if (StatSet)
 	{
-		for (const FTaggedAttribute& Entry : AttributeSet->Attributes)
+		for (const FTaggedStat& Entry : StatSet->Stats)
 		{
-			FAttribute NewAttr;
+			FStat NewAttr;
 			NewAttr.BaseValue = Entry.BaseValue;
 			NewAttr.MaxValue = Entry.MaxValue;   // <-- uses your data asset value
 			NewAttr.PermanentMax = Entry.MaxValue;
 			NewAttr.CurrentValue = Entry.BaseValue; // optional — can set to Base or Max
 
-			Attributes.Add(Entry.Tag, NewAttr);
+			Stats.Add(Entry.Tag, NewAttr);
 		}
 	}
 
-	// Initialize attributes (permanent max, modifiers, clamp)
-	UpdateAttributes(false);
+	// Initialize Stats (permanent max, modifiers, clamp)
+	UpdateStats(false);
 
 	// Cache owner refs
 	RefreshCachedRefs();
@@ -70,15 +65,15 @@ void URFGameplayComponent::BeginPlay()
 
 // -- Actions Section ---
 
-void URFGameplayComponent::RebuildResistanceCache()
+void UStatComponent::RebuildResistanceCache()
 {
 	DamageTagToResistanceCache.Empty();
 
-	for (const auto& Pair : Attributes)
+	for (const auto& Pair : Stats)
 	{
 		const FGameplayTag& AttrTag = Pair.Key;
 
-		// Only attributes starting with "Resistance"
+		// Only Stats starting with "Resistance"
 		if (!AttrTag.ToString().StartsWith(TEXT("Resistance")))
 			continue;
 
@@ -92,303 +87,16 @@ void URFGameplayComponent::RebuildResistanceCache()
 	}
 }
 
-URFAction* URFGameplayComponent::GetActionByTag(FGameplayTag ActionTag) const
+
+void UStatComponent::ApplyStatModifier(const FStatModifier& Modifier)
 {
-	for (URFAction* Action : GrantedActions)
-	{
-		if (Action && Action->ActionTag == ActionTag)
-		{
-			return Action;
-		}
-	}
-	return nullptr;
-}
-
-URFAction* URFGameplayComponent::GrantAction(TSubclassOf<URFAction> ActionClass)
-{
-	if (!*ActionClass) return nullptr;
-
-	// Prevent duplicates
-	for (URFAction* Action : GrantedActions)
-	{
-		if (Action && Action->GetClass() == *ActionClass)
-		{
-			return Action;
-		}
-	}
-
-	URFAction* NewAction = NewObject<URFAction>(this, ActionClass);
-	if (NewAction)
-	{
-		GrantedActions.Add(NewAction);
-
-		// Initialize once at grant time (does NOT trigger full activation logic)
-		NewAction->InitializeActionInfo(CachedActor, CachedMesh, CachedController, this);
-	}
-
-	return NewAction;
-}
-
-bool URFGameplayComponent::RemoveAction(TSubclassOf<URFAction> ActionClass)
-{
-	if (!*ActionClass) return false;
-
-	for (int32 i = GrantedActions.Num() - 1; i >= 0; --i)
-	{
-		URFAction* Action = GrantedActions[i];
-		if (Action && Action->GetClass() == *ActionClass)
-		{
-			GrantedActions.RemoveAt(i);
-			ActiveActions.Remove(Action);
-			return true;
-		}
-	}
-	return false;
-}
-
-void URFGameplayComponent::SendActionEvent(const FActionEventData& EventData)
-{
-	for (URFAction* Action : GrantedActions)
-	{
-		if (!Action) continue;
-
-		// Only consider the action that matches this event
-		if (Action->ActionTag != EventData.EventTag)
-		{
-			continue;
-		}
-
-		// Blocked tags check
-		if (OwnedTags.HasAny(Action->BlockedTags))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("ActionEvent blocked by tags!"));
-			return;
-		}
-
-		// Required tags check
-		if (!Action->RequiredTags.IsEmpty() && !OwnedTags.HasAll(Action->RequiredTags))
-		{
-			UE_LOG(LogTemp, Warning, TEXT("ActionEvent blocked for missing required tags!"));
-			return;
-		}
-
-		const bool bWasInactive = !ActiveActions.Contains(Action);
-		if (bWasInactive)
-		{
-			for (const FGameplayTag& CancelTag : Action->CancelActionsWithTags)
-			{
-				EndAction(CancelTag);
-			}
-
-			InitActionInfo(Action);
-			ActiveActions.Add(Action);
-			Action->ActivateAction();
-		}
-
-		Action->HandleActionEvent(EventData);
-
-		// If only one action should respond to a given tag, stop here:
-		return;
-	}
-}
-
-bool URFGameplayComponent::TryActivateAction(FGameplayTag ActionTag)
-{
-    URFAction* Action = GetActionByTag(ActionTag);
-	UE_LOG(LogTemp, Log, TEXT("First step check: Requesting start on action: %s"), *ActionTag.ToString());
-    if (!Action)
-    {
-    	UE_LOG(LogTemp, Log, TEXT("URFAction::ActivateAction - ActionCheck (action not valid!!!)"));
-	    return false;
-    }
-    const float TimeNow = GetWorld()->GetTimeSeconds();
-
-    // ---- Cooldown ----
-    if (TimeNow - Action->LastActivationTime < Action->CooldownTime)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Action %s on cooldown"), *ActionTag.ToString());
-        return false;
-    }
-
-    // ---- Tag checks ----
-    if (OwnedTags.HasAny(Action->BlockedTags))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Action %s blocked by tags"), *ActionTag.ToString());
-        return false;
-    }
-    if (!OwnedTags.HasAll(Action->RequiredTags))
-    {
-        UE_LOG(LogTemp, Warning, TEXT("Action %s missing required tags"), *ActionTag.ToString());
-        return false;
-    }
-
-    // ---- Attribute cost check ----
-    for (const auto& Pair : Action->AttributeCosts)
-    {
-        const FGameplayTag& Attribute = Pair.Key;
-        float Cost = Pair.Value;
-
-        float CurrentValue = GetAttributeValue(Attribute, EAttributeTarget::CurrentValue);
-        if (CurrentValue < Cost)
-        {
-            UE_LOG(LogTemp, Warning, TEXT("Not enough %s to activate %s"),
-                *Attribute.ToString(), *ActionTag.ToString());
-            return false;
-        }
-    }
-
-    // ---- Apply costs ----
-	for (const auto& Pair : Action->AttributeCosts)
-	{
-		const FGameplayTag& Attribute = Pair.Key;
-		float Cost = Pair.Value;
-
-		FAttributeModifier Modifier;
-		Modifier.AttributeTag = Attribute;
-		Modifier.Magnitude    = -Cost;
-		Modifier.Target       = EAttributeTarget::CurrentValue;
-		Modifier.ModifierType = EModifierType::Additive;
-
-		ApplyAttributeModifier(Modifier);
-	}
-
-    // ---- Activate Action ----
-    Action->LastActivationTime = TimeNow;
-
-	// ---- Cancel other actions ----
-	for (const FGameplayTag& CancelTag : Action->CancelActionsWithTags)
-	{
-   	 	EndAction(CancelTag);
-	}
-
-		// Add action to active actions list
-	if (!ActiveActions.Contains(Action))
-	{
-		InitActionInfo(Action);
-		ActiveActions.Add(Action);
-	}
-	
-	// 🔹 If this action’s input tag is currently held, notify it right away
-	if (CurrentlyHeldInputs.Contains(ActionTag)) 
-	{
-		Action->OnInputPressed();
-	}
-
-    return true;
-}
-
-void URFGameplayComponent::HandleInputPressed(FGameplayTag InputTag)
-{
-	const float Now = GetWorld()->GetTimeSeconds();
-	CurrentlyHeldInputs.Add(InputTag, Now);
-
-	TArray<URFAction*> ActionsCopy = ActiveActions;
-
-	for (URFAction* Action : ActionsCopy)
-	{
-		if (Action && Action->ActionTag == InputTag)
-		{
-			Action->InputPressedStartTime = Now;
-			Action->OnInputPressed();
-		}
-	}
-}
-
-void URFGameplayComponent::HandleInputReleased(FGameplayTag InputTag)
-{
-	const float Now = GetWorld()->GetTimeSeconds();
-
-	TArray<URFAction*> ActionsCopy = ActiveActions;
-
-	for (URFAction* Action : ActionsCopy)
-	{
-		if (Action && Action->ActionTag == InputTag)
-		{
-			float HeldTime = 0.0f;
-
-			if (Action->InputPressedStartTime > 0.0f)
-			{
-				HeldTime = Now - Action->InputPressedStartTime;
-			}
-
-			Action->OnInputReleased(HeldTime);
-		}
-	}
-
-	CurrentlyHeldInputs.Remove(InputTag);
-}
-
-void URFGameplayComponent::InitActionInfo(URFAction* Action)
-{
-	UE_LOG(LogTemp, Log, TEXT("URFGameplayComponent::InitActionInfo triggered"));
-
-	if (!Action) return;
-
-	// Ensure cached refs are valid (handles delayed possession, etc.)
-	RefreshCachedRefs();
-
-	// Pass cached refs to the action
-	Action->ActivateAction();
-}
-
-void URFGameplayComponent::RefreshCachedRefs()
-{
-	if (!CachedActor)
-		CachedActor = GetOwner();
-
-	if (ARFPlayerState* PS = Cast<ARFPlayerState>(CachedActor))
-	{
-		CachedPlayerState = PS; // ✅ Store it
-
-		if (APawn* Pawn = PS->GetPawn())
-		{
-			CachedActor = Pawn;
-			CachedController = Pawn->GetController();
-
-			if (ACharacter* Char = Cast<ACharacter>(Pawn))
-			{
-				CachedMesh = Char->GetMesh();
-			}
-		}
-	}
-	else if (ACharacter* Char = Cast<ACharacter>(CachedActor))
-	{
-		CachedController = Char->GetController();
-		CachedMesh = Char->GetMesh();
-	}
-	else if (APawn* Pawn = Cast<APawn>(CachedActor))
-	{
-		CachedController = Pawn->GetController();
-	}
-}
-
-bool URFGameplayComponent::EndAction(FGameplayTag ActionTag)
-{
-	URFAction* Action = GetActionByTag(ActionTag);
-	if (!Action) return false;
-
-	Action->EndAction();          // let the action handle its own cleanup
-	EndActionInstance(Action);    // remove from ActiveActions
-
-	return true;
-}
-
-void URFGameplayComponent::EndActionInstance(URFAction* Action)
-{
-	if (!Action) return;
-
-	ActiveActions.RemoveSingle(Action);
-}
-
-void URFGameplayComponent::ApplyAttributeModifier(const FAttributeModifier& Modifier)
-{
-	if (FAttribute* Attr = Attributes.Find(Modifier.AttributeTag))
+	if (FStat* Attr = Stats.Find(Modifier.StatTag))
 	{
 		float OldCurrent = Attr->CurrentValue;
 		float OldMax     = Attr->MaxValue;
 
 		// Current / Both
-		if (Modifier.Target == EAttributeTarget::CurrentValue || Modifier.Target == EAttributeTarget::Both)
+		if (Modifier.Target == EStatTarget::CurrentValue || Modifier.Target == EStatTarget::Both)
 		{
 			if (Modifier.ModifierType == EModifierType::Additive)
 			{
@@ -401,7 +109,7 @@ void URFGameplayComponent::ApplyAttributeModifier(const FAttributeModifier& Modi
 		}
 
 		// Max / Both
-		if (Modifier.Target == EAttributeTarget::MaxValue || Modifier.Target == EAttributeTarget::Both)
+		if (Modifier.Target == EStatTarget::MaxValue || Modifier.Target == EStatTarget::Both)
 		{
 			if (Modifier.ModifierType == EModifierType::Additive)
 			{
@@ -419,14 +127,14 @@ void URFGameplayComponent::ApplyAttributeModifier(const FAttributeModifier& Modi
 		// Broadcast changes
 		if (!FMath::IsNearlyEqual(OldCurrent, Attr->CurrentValue))
 		{
-			OnAttributeChanged.Broadcast(Modifier.AttributeTag, Attr->CurrentValue);
+			OnStatChanged.Broadcast(Modifier.StatTag, Attr->CurrentValue);
 		}
 		if (!FMath::IsNearlyEqual(OldMax, Attr->MaxValue))
 		{
-			OnAttributeChanged.Broadcast(Modifier.AttributeTag, Attr->MaxValue);
+			OnStatChanged.Broadcast(Modifier.StatTag, Attr->MaxValue);
 		}
-		// --- Rebuild resistance cache if this attribute is a resistance ---
-		if (Modifier.AttributeTag.GetTagName().ToString().Contains(TEXT("Resistance.")))
+		// --- Rebuild resistance cache if this Stat is a resistance ---
+		if (Modifier.StatTag.GetTagName().ToString().Contains(TEXT("Resistance.")))
 		{
 			RebuildResistanceCache();
 		}
@@ -434,49 +142,49 @@ void URFGameplayComponent::ApplyAttributeModifier(const FAttributeModifier& Modi
 }
 
 
-//Tracking Item AttributeModifiers
-void URFGameplayComponent::AddItemModifierTag(const FGameplayTag& Tag)
+//Tracking Item StatModifiers
+void UStatComponent::AddItemModifierTag(const FGameplayTag& Tag)
 {
-	int32& Count = ItemModifiedAttributes.FindOrAdd(Tag);
+	int32& Count = ItemModifiedStats.FindOrAdd(Tag);
 	Count++;
 }
 
-void URFGameplayComponent::RemoveItemModifierTag(const FGameplayTag& Tag)
+void UStatComponent::RemoveItemModifierTag(const FGameplayTag& Tag)
 {
-	if (int32* Count = ItemModifiedAttributes.Find(Tag))
+	if (int32* Count = ItemModifiedStats.Find(Tag))
 	{
 		(*Count)--;
 
 		if (*Count <= 0)
 		{
-			ItemModifiedAttributes.Remove(Tag);
+			ItemModifiedStats.Remove(Tag);
 		}
 	}
 }
 //////////////////////////
 
-FAttribute* URFGameplayComponent::GetAttributeRef(FGameplayTag AttributeTag)
+FStat* UStatComponent::GetStatRef(FGameplayTag StatTag)
 {
-	return Attributes.Find(AttributeTag); // returns FAttribute*, might be nullptr
+	return Stats.Find(StatTag); // returns FStat*, might be nullptr
 }
 
-float URFGameplayComponent::GetAttributeValue(FGameplayTag AttributeTag, EAttributeTarget Target) const
+float UStatComponent::GetStatValue(FGameplayTag StatTag, EStatTarget Target) const
 {
-	if (const FAttribute* Attr = Attributes.Find(AttributeTag))
+	if (const FStat* Attr = Stats.Find(StatTag))
 	{
 		switch (Target)
 		{
-		case EAttributeTarget::CurrentValue: return Attr->CurrentValue;
-		case EAttributeTarget::MaxValue:     return Attr->MaxValue;
-		case EAttributeTarget::Both:         return Attr->CurrentValue; // default to current
+		case EStatTarget::CurrentValue: return Attr->CurrentValue;
+		case EStatTarget::MaxValue:     return Attr->MaxValue;
+		case EStatTarget::Both:         return Attr->CurrentValue; // default to current
 		}
 	}
 	return 0.f;
 }
 
-int32 URFGameplayComponent::GetPointsSpentOnAttribute(FGameplayTag AttributeTag) const
+int32 UStatComponent::GetPointsSpentOnStat(FGameplayTag StatTag) const
 {
-	if (const FAttribute* Attr = Attributes.Find(AttributeTag))
+	if (const FStat* Attr = Stats.Find(StatTag))
 	{
 		return Attr->PointsSpent;
 	}
@@ -484,16 +192,16 @@ int32 URFGameplayComponent::GetPointsSpentOnAttribute(FGameplayTag AttributeTag)
 }
 
 
-// --- UpdateAttributes and apply levelpoints --- 
-void URFGameplayComponent::UpdateAttributes(bool bClampToMax /*= true*/)
+// --- UpdateStats and apply levelpoints --- 
+void UStatComponent::UpdateStats(bool bClampToMax /*= true*/)
 {
-	const FGameplayTag XPTag = FGameplayTag::RequestGameplayTag(FName("Attribute.XP"));
-	const FGameplayTag PointsTag = FGameplayTag::RequestGameplayTag(FName("Attribute.SpendablePoints"));
+	const FGameplayTag XPTag = FGameplayTag::RequestGameplayTag(FName("Stat.XP"));
+	const FGameplayTag PointsTag = FGameplayTag::RequestGameplayTag(FName("Stat.SpendablePoints"));
 
-	for (auto& Pair : Attributes)
+	for (auto& Pair : Stats)
 	{
 		FGameplayTag Tag = Pair.Key;
-		FAttribute& Attr = Pair.Value;
+		FStat& Attr = Pair.Value;
 
 		// --- Skip XP and SpendablePoints since they handle their own progression ---
 		if (Tag.MatchesTagExact(XPTag) || Tag.MatchesTagExact(PointsTag))
@@ -525,16 +233,16 @@ void URFGameplayComponent::UpdateAttributes(bool bClampToMax /*= true*/)
 		// --- Broadcast changes ---
 		if (!FMath::IsNearlyEqual(OldCurrent, Attr.CurrentValue))
 		{
-			OnAttributeChanged.Broadcast(Tag, Attr.CurrentValue);
+			OnStatChanged.Broadcast(Tag, Attr.CurrentValue);
 		}
 
 		if (!FMath::IsNearlyEqual(OldMax, Attr.MaxValue) ||
 			!FMath::IsNearlyEqual(OldPermanent, Attr.PermanentMax))
 		{
-			OnAttributeChanged.Broadcast(Tag, Attr.MaxValue);
+			OnStatChanged.Broadcast(Tag, Attr.MaxValue);
 		}
 
-		// --- Rebuild resistance cache if this is a resistance attribute ---
+		// --- Rebuild resistance cache if this is a resistance Stat ---
 		if (Tag.ToString().Contains(TEXT("Resistance.")))
 		{
 			RebuildResistanceCache();
@@ -543,83 +251,15 @@ void URFGameplayComponent::UpdateAttributes(bool bClampToMax /*= true*/)
 }
 
 
-// --- Spend Leveling points into Attributes ---- 
-int32 URFGameplayComponent::ApplyPointToAttribute(
-	const FGameplayTag& AttributeTag, int32 Amount, EAttributeTarget Target)
+void UStatComponent::ClearItemModifiers()
 {
-	// --- Check SpendablePoints first ---
-	if (FAttribute* Spendable = Attributes.Find(FGameplayTag::RequestGameplayTag(FName("Attribute.SpendablePoints"))))
-	{
-		if (Spendable->CurrentValue < Amount)
-		{
-			// Not enough points to spend
-			return 0;
-		}
-
-		// Subtract points from the pool
-		Spendable->CurrentValue -= Amount;
-		OnAttributeChanged.Broadcast(FGameplayTag::RequestGameplayTag(FName("Attribute.SpendablePoints")), Spendable->CurrentValue);
-	}
-	else
-	{
-		// No SpendablePoints attribute found, can't continue
-		return 0;
-	}
-
-	// --- Apply points to target attribute ---
-	if (FAttribute* Attr = Attributes.Find(AttributeTag))
-	{
-		Attr->PointsSpent += Amount;
-
-		// Update permanent max (base calculation — item bonuses will be reapplied afterward)
-		Attr->PermanentMax = Attr->BaseValue * FMath::Sqrt(static_cast<float>(Attr->PointsSpent + 1));
-
-		// Runtime max = permanent (no active modifiers applied yet)
-		Attr->MaxValue = Attr->PermanentMax;
-
-		// Clamp or adjust current value depending on target
-		switch (Target)
-		{
-		case EAttributeTarget::CurrentValue:
-			Attr->CurrentValue = FMath::Clamp(Attr->CurrentValue, 0.f, Attr->MaxValue);
-			break;
-
-		case EAttributeTarget::MaxValue:
-			// leave CurrentValue untouched
-				break;
-
-		case EAttributeTarget::Both:
-			Attr->CurrentValue = Attr->MaxValue;
-			break;
-		}
-
-		// Broadcast attribute change
-		OnAttributeChanged.Broadcast(AttributeTag, Attr->CurrentValue);
-
-		// --- Reapply item bonuses after attribute point allocation ---
-		if (CachedPlayerState)
-		{
-			if (URFInventoryComponent* InvComp = CachedPlayerState->FindComponentByClass<URFInventoryComponent>())
-			{
-				InvComp->ReapplyAllItemAttributes();
-			}
-		}
-
-		return Attr->PointsSpent;
-	}
-
-	return 0;
-}
-
-void URFGameplayComponent::ClearItemModifiers()
-{
-	if (ItemModifiedAttributes.Num() == 0)
+	if (ItemModifiedStats.Num() == 0)
 	{
 		return;
 	}
 
 	// Iterate through all tags currently modified by one or more items
-	for (auto It = ItemModifiedAttributes.CreateIterator(); It; ++It)
+	for (auto It = ItemModifiedStats.CreateIterator(); It; ++It)
 	{
 		const FGameplayTag& Tag = It.Key();
 		int32 Count = It.Value();
@@ -629,51 +269,50 @@ void URFGameplayComponent::ClearItemModifiers()
 			continue; // Skip any invalid entries (shouldn't normally happen)
 		}
 
-		if (FAttribute* Attr = Attributes.Find(Tag))
+		if (FStat* Attr = Stats.Find(Tag))
 		{
-			// Reset attribute to its permanent (non-item) value
+			// Reset Stat to its permanent (non-item) value
 			Attr->MaxValue = Attr->PermanentMax;
 			Attr->CurrentValue = FMath::Clamp(Attr->CurrentValue, 0.f, Attr->MaxValue);
 
 			// Notify listeners/UI
-			OnAttributeChanged.Broadcast(Tag, Attr->CurrentValue);
+			OnStatChanged.Broadcast(Tag, Attr->CurrentValue);
 		}
 	}
 
 	// ✅ Clear all entries, since we’ll reapply current equipment afterward
-	ItemModifiedAttributes.Empty();
+	ItemModifiedStats.Empty();
 }
 
-
-void URFGameplayComponent::GrantExperience(float Amount)
+void UStatComponent::GrantExperience(float Amount)
 {
     if (Amount <= 0.f)
         return;
 
-    static const FGameplayTag XPTag = FGameplayTag::RequestGameplayTag(FName("Attribute.XP"));
-    static const FGameplayTag SpendablePointsTag = FGameplayTag::RequestGameplayTag(FName("Attribute.SpendablePoints"));
+    static const FGameplayTag XPTag = FGameplayTag::RequestGameplayTag(FName("Stat.XP"));
+    static const FGameplayTag SpendablePointsTag = FGameplayTag::RequestGameplayTag(FName("Stat.SpendablePoints"));
 
     // Ensure LevelUpGrowthFactor has a sane default (e.g. 0.1 = +10%)
     if (LevelUpGrowthFactor <= 0.f)
         LevelUpGrowthFactor = 0.1f;
 
-    // Find or create XP attribute
-    FAttribute* XPAttr = Attributes.Find(XPTag);
+    // Find or create XP Stat
+    FStat* XPAttr = Stats.Find(XPTag);
     if (!XPAttr)
     {
-        FAttribute NewXP;
+        FStat NewXP;
         NewXP.CurrentValue = 0.f;
         NewXP.MaxValue = 100.f;
         NewXP.BaseValue = 0.f;
         NewXP.PermanentMax = 100.f;
-        Attributes.Add(XPTag, NewXP);
-        XPAttr = Attributes.Find(XPTag);
+        Stats.Add(XPTag, NewXP);
+        XPAttr = Stats.Find(XPTag);
     }
 
-    FAttribute& XP = *XPAttr;
+    FStat& XP = *XPAttr;
 
     XP.CurrentValue += Amount;
-    OnAttributeChanged.Broadcast(XPTag, XP.CurrentValue);
+    OnStatChanged.Broadcast(XPTag, XP.CurrentValue);
 
     // --- Level Up Check ---
     bool bLeveledUp = false;
@@ -698,12 +337,12 @@ void URFGameplayComponent::GrantExperience(float Amount)
         UE_LOG(LogTemp, Warning, TEXT("Level Up! New Level: %d, New Max XP: %.2f"), CurrentLevel, XP.MaxValue);
 
         // ✅ Grant Spendable Points
-        FAttributeModifier RewardModifier;
-        RewardModifier.AttributeTag = SpendablePointsTag;
-        RewardModifier.Target = EAttributeTarget::CurrentValue;
+        FStatModifier RewardModifier;
+        RewardModifier.StatTag = SpendablePointsTag;
+        RewardModifier.Target = EStatTarget::CurrentValue;
         RewardModifier.ModifierType = EModifierType::Additive;
         RewardModifier.Magnitude = SpendablePointsPerLevel;
-        ApplyAttributeModifier(RewardModifier);
+        ApplyStatModifier(RewardModifier);
 
         // Fire Blueprint-native event
         OnLevelUp.Broadcast(CurrentLevel);
@@ -716,14 +355,14 @@ void URFGameplayComponent::GrantExperience(float Amount)
 
     if (bLeveledUp)
     {
-        OnAttributeChanged.Broadcast(XPTag, XP.CurrentValue);
+        OnStatChanged.Broadcast(XPTag, XP.CurrentValue);
     }
 }
 
 
 
 // --- Fix so Default is Damage.Physical ---
-float URFGameplayComponent::GetResistanceForDamage(const FGameplayTag& DamageTag)
+float UStatComponent::GetResistanceForDamage(const FGameplayTag& DamageTag)
 {
 	// Try to find the resistance in the cache
 	for (const auto& Pair : DamageTagToResistanceCache)
@@ -736,7 +375,7 @@ float URFGameplayComponent::GetResistanceForDamage(const FGameplayTag& DamageTag
 }
 
 
-float URFGameplayComponent::CalculateDamageReduction(float Value, float CapAtValue, float MaxReduction) const
+float UStatComponent::CalculateDamageReduction(float Value, float CapAtValue, float MaxReduction) const
 {
 	if (Value <= 0.f || CapAtValue <= 0.f || MaxReduction <= 0.f)
 	{
@@ -752,25 +391,25 @@ float URFGameplayComponent::CalculateDamageReduction(float Value, float CapAtVal
 	return FMath::Clamp(Reduction, 0.f, MaxReduction);
 }
 
-void URFGameplayComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
+void UStatComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
 {
     if (DamageList.Num() == 0)
         return;
 
     float TotalDamage = 0.f;
 	float TotalPoiseDamage = 0.f;
-    float Armor = GetAttributeValue(RFAttributeTags::Armor);
+    float Armor = GetStatValue(RFStatTags::Armor);
 
     // --- Instigator stats (one instigator per DamageList) ---
-    URFGameplayComponent* InstigatorGC = DamageList[0].InstigatorRFGC;
+    UStatComponent* InstigatorGC = DamageList[0].InstigatorStatComp;
     FInstigatorStats Stats;
 
     if (InstigatorGC)
     {
-        Stats.BaseDamage       = InstigatorGC->GetAttributeValue(RFAttributeTags::Damage);
-        Stats.CritChance       = InstigatorGC->GetAttributeValue(RFAttributeTags::CritChance);
-        Stats.CritMultiplier   = InstigatorGC->GetAttributeValue(RFAttributeTags::CritDamage);
-        Stats.LifeStealPercent = InstigatorGC->GetAttributeValue(RFAttributeTags::LifeSteal);
+        Stats.BaseDamage       = InstigatorGC->GetStatValue(RFStatTags::Damage);
+        Stats.CritChance       = InstigatorGC->GetStatValue(RFStatTags::CritChance);
+        Stats.CritMultiplier   = InstigatorGC->GetStatValue(RFStatTags::CritDamage);
+        Stats.LifeStealPercent = InstigatorGC->GetStatValue(RFStatTags::LifeSteal);
     }
     else
     {
@@ -846,25 +485,25 @@ void URFGameplayComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
         // Lifesteal (only for non-DoTs)
         if (!bIsDoT && Stats.LifeStealPercent > 0.f && InstigatorGC)
         {
-            FAttribute* InstigatorHealthPtr = InstigatorGC->GetAttributeRef(RFAttributeTags::Health);
+            FStat* InstigatorHealthPtr = InstigatorGC->GetStatRef(RFStatTags::Health);
             if (InstigatorHealthPtr)
             {
-                FAttribute& InstigatorHealth = *InstigatorHealthPtr;
+                FStat& InstigatorHealth = *InstigatorHealthPtr;
                 float Heal = FinalDamage * Stats.LifeStealPercent;
                 InstigatorHealth.CurrentValue = FMath::Clamp(
                     InstigatorHealth.CurrentValue + Heal, 0.f, InstigatorHealth.MaxValue);
-                InstigatorGC->OnAttributeChanged.Broadcast(RFAttributeTags::Health, InstigatorHealth.CurrentValue);
+                InstigatorGC->OnStatChanged.Broadcast(RFStatTags::Health, InstigatorHealth.CurrentValue);
             }
         }
     }
 
     // --- Apply total damage to target ---
-    FAttribute* HealthPtr = GetAttributeRef(RFAttributeTags::Health);
+    FStat* HealthPtr = GetStatRef(RFStatTags::Health);
     if (HealthPtr)
     {
-        FAttribute& Health = *HealthPtr;
+        FStat& Health = *HealthPtr;
         Health.CurrentValue = FMath::Clamp(Health.CurrentValue - TotalDamage, 0.f, Health.MaxValue);
-        OnAttributeChanged.Broadcast(RFAttributeTags::Health, Health.CurrentValue);
+        OnStatChanged.Broadcast(RFStatTags::Health, Health.CurrentValue);
 
         if (Health.CurrentValue <= 0.f && !bIsDead)
         {
@@ -883,64 +522,13 @@ void URFGameplayComponent::ApplyDamage(const TArray<FDamageInfo>& DamageList)
 }
 
 
-
-void URFGameplayComponent::ApplyPoiseDamage(float Amount, URFGameplayComponent* InstigatorGC)
-{
-	FAttribute* PoisePtr = GetAttributeRef(RFAttributeTags::Poise);
-	if (!PoisePtr)
-		return;
-
-	FAttribute& Poise = *PoisePtr;
-
-	Poise.CurrentValue = FMath::Clamp(Poise.CurrentValue - Amount, 0.f, Poise.MaxValue);
-	OnAttributeChanged.Broadcast(RFAttributeTags::Poise, Poise.CurrentValue);
-
-	// Retriggerable restore delay
-	GetWorld()->GetTimerManager().ClearTimer(PoiseRegenDelayHandle);
-	GetWorld()->GetTimerManager().SetTimer(
-		PoiseRegenDelayHandle,
-		this,
-		&URFGameplayComponent::RestorePoise,
-		PoiseRegenDelay,
-		false
-	);
-
-	if (Poise.CurrentValue <= 0.f && !bPoiseBroken)
-	{
-		bPoiseBroken = true;
-		OnPoiseBreakBP.Broadcast();
-		
-		FActionEventData EventData;
-		EventData.EventTag = PoiseBreakEventTag;
-		EventData.Instigator = InstigatorGC ? InstigatorGC->GetOwner() : nullptr;
-		EventData.HitResult = FHitResult();
-		
-	SendActionEvent(EventData);
-	}
-}
-
-void URFGameplayComponent::RestorePoise()
-{
-	FAttribute* PoisePtr = GetAttributeRef(RFAttributeTags::Poise);
-	if (!PoisePtr)
-		return;
-
-	FAttribute& Poise = *PoisePtr;
-
-	Poise.CurrentValue = Poise.MaxValue;
-	bPoiseBroken = false;
-
-	OnAttributeChanged.Broadcast(RFAttributeTags::Poise, Poise.CurrentValue);
-}
-
-
-void URFGameplayComponent::ApplyPeriodicEffect(
-    FGameplayTag AttributeTag,
+void UStatComponent::ApplyPeriodicEffect(
+    FGameplayTag StatTag,
     float Magnitude,
     float Duration,
     float TickInterval,
     EModifierType ModifierType,
-    URFGameplayComponent* InstigatorRFGC,
+    UStatComponent* InstigatorStatComp,
     bool bIsDOTorHOT,
     FName EffectID,
     FGameplayTag DamageTypeTag,
@@ -968,7 +556,7 @@ void URFGameplayComponent::ApplyPeriodicEffect(
             Effect.ModifierType   = ModifierType;
             Effect.DamageTypeTag  = DamageTypeTag;
             Effect.bIsDOTorHOT    = bIsDOTorHOT;
-            Effect.InstigatorRFGC   = InstigatorRFGC;
+            Effect.InstigatorStatComp   = InstigatorStatComp;
 
             OnTimedEffectStackChanged.Broadcast(Effect.EffectID, Effect.StackCount, Effect.TimeRemaining);
             return;
@@ -978,7 +566,7 @@ void URFGameplayComponent::ApplyPeriodicEffect(
     // Create new effect
     FTimedEffect NewEffect;
     NewEffect.EffectID        = EffectID;
-    NewEffect.AttributeTag    = AttributeTag;
+    NewEffect.StatTag    = StatTag;
     NewEffect.DamageTypeTag   = DamageTypeTag;
     NewEffect.Magnitude       = Magnitude;
     NewEffect.ModifierType    = ModifierType;
@@ -987,7 +575,7 @@ void URFGameplayComponent::ApplyPeriodicEffect(
     NewEffect.TimeRemaining   = Duration;
     NewEffect.TimeUntilNextTick = TickInterval > 0.f ? TickInterval : 0.f;
     NewEffect.bIsDOTorHOT     = bIsDOTorHOT;
-    NewEffect.InstigatorRFGC   = InstigatorRFGC;
+    NewEffect.InstigatorStatComp   = InstigatorStatComp;
     NewEffect.StackCount      = 1;
 	NewEffect.WhileActiveTag	= WhileActiveTag;
 
@@ -1002,7 +590,7 @@ void URFGameplayComponent::ApplyPeriodicEffect(
         	FDamageInfo DamageInfo;
         	DamageInfo.Magnitude      = Magnitude;
         	DamageInfo.DamageType     = DamageTypeTag;
-        	DamageInfo.InstigatorRFGC = InstigatorRFGC;
+        	DamageInfo.InstigatorStatComp = InstigatorStatComp;
 
         	TArray<FDamageInfo> DamageArray;
         	DamageArray.Add(DamageInfo);
@@ -1012,12 +600,12 @@ void URFGameplayComponent::ApplyPeriodicEffect(
         else
         {
             // Buff/debuff applied instantly
-            FAttributeModifier Mod;
-            Mod.AttributeTag   = AttributeTag;
+            FStatModifier Mod;
+            Mod.StatTag   = StatTag;
             Mod.Magnitude      = Magnitude;
             Mod.ModifierType   = ModifierType;
-            Mod.Target         = EAttributeTarget::Both;
-            ApplyAttributeModifier(Mod);
+            Mod.Target         = EStatTarget::Both;
+            ApplyStatModifier(Mod);
         }
     }
 
@@ -1029,21 +617,19 @@ void URFGameplayComponent::ApplyPeriodicEffect(
 	}
 }
 
-
-
-void URFGameplayComponent::RemovePeriodicEffectsByTag(FGameplayTag AttributeTag)
+void UStatComponent::RemovePeriodicEffectsByTag(FGameplayTag StatTag)
 {
 	for (int32 i = ActiveTimedEffects.Num() - 1; i >= 0; --i)
 	{
 		FTimedEffect& Effect = ActiveTimedEffects[i];
 
-		if (Effect.AttributeTag == AttributeTag)
+		if (Effect.StatTag == StatTag)
 		{
 			if (!Effect.bIsDOTorHOT)
 			{
-				FAttributeModifier InverseMod;
-				InverseMod.AttributeTag = Effect.AttributeTag;
-				InverseMod.Target = EAttributeTarget::Both;
+				FStatModifier InverseMod;
+				InverseMod.StatTag = Effect.StatTag;
+				InverseMod.Target = EStatTarget::Both;
 				InverseMod.ModifierType = Effect.ModifierType;
 
 				if (Effect.ModifierType == EModifierType::Additive)
@@ -1056,7 +642,7 @@ void URFGameplayComponent::RemovePeriodicEffectsByTag(FGameplayTag AttributeTag)
 					InverseMod.Magnitude = (1.f / TotalFactor) - 1.f;
 				}
 
-				ApplyAttributeModifier(InverseMod);
+				ApplyStatModifier(InverseMod);
 			}
 
 			// Broadcast UI event
@@ -1073,7 +659,7 @@ void URFGameplayComponent::RemovePeriodicEffectsByTag(FGameplayTag AttributeTag)
 
 // -- GameplayTag Management ---
 
-void URFGameplayComponent::AddTag(FGameplayTag Tag)
+void UStatComponent::AddTag(FGameplayTag Tag)
 {
 	if (!OwnedTags.HasTag(Tag))
 	{
@@ -1083,11 +669,11 @@ void URFGameplayComponent::AddTag(FGameplayTag Tag)
 		OnTagChanged.Broadcast(Tag, true);
 		OnTagChangedBP.Broadcast();     // For Blueprints
 
-		UE_LOG(LogTemp, Log, TEXT("URFGameplayComponent::AddTag - Added Tag: %s"), *Tag.ToString());
+		UE_LOG(LogTemp, Log, TEXT("UStatComponent::AddTag - Added Tag: %s"), *Tag.ToString());
 	}
 }
 
-void URFGameplayComponent::RemoveTag(FGameplayTag Tag)
+void UStatComponent::RemoveTag(FGameplayTag Tag)
 {
 	if (OwnedTags.HasTag(Tag))
 	{
@@ -1097,62 +683,17 @@ void URFGameplayComponent::RemoveTag(FGameplayTag Tag)
 		OnTagChanged.Broadcast(Tag, false);
 		OnTagChangedBP.Broadcast();     // For Blueprints
 
-		UE_LOG(LogTemp, Log, TEXT("URFGameplayComponent::RemoveTag - Removed Tag: %s"), *Tag.ToString());
+		UE_LOG(LogTemp, Log, TEXT("UStatComponent::RemoveTag - Removed Tag: %s"), *Tag.ToString());
 	}
 }
 
-bool URFGameplayComponent::HasTag(FGameplayTag Tag) const
+bool UStatComponent::HasTag(FGameplayTag Tag) const
 {
 	return OwnedTags.HasTag(Tag);
 }
 
-void URFGameplayComponent::ApplySlomoFX(USkeletalMeshComponent* Mesh, float NewRate, float Duration)
-{
-	if (!Mesh || !GetWorld())
-	{
-		return;
-	}
 
-	// If we’re applying to a new mesh (or first time), capture original rate
-	if (TargetMesh.Get() != Mesh)
-	{
-		OriginalRate = Mesh->GlobalAnimRateScale;
-		TargetMesh = Mesh;
-	}
-
-	// Set slowed animation rate
-	Mesh->GlobalAnimRateScale = NewRate;
-
-	// Retriggerable delay: clear and restart
-	GetWorld()->GetTimerManager().ClearTimer(AnimRateTimerHandle);
-
-	if (Duration <= 0.f)
-	{
-		ResetAnimRate();
-		return;
-	}
-
-	GetWorld()->GetTimerManager().SetTimer(
-		AnimRateTimerHandle,
-		this,
-		&URFGameplayComponent::ResetAnimRate,
-		Duration,
-		false
-	);
-}
-
-void URFGameplayComponent::ResetAnimRate()
-{
-	if (USkeletalMeshComponent* Mesh = TargetMesh.Get())
-	{
-		Mesh->GlobalAnimRateScale = OriginalRate;
-	}
-
-	TargetMesh = nullptr;
-}
-
-
-void URFGameplayComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
+void UStatComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
     Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
@@ -1171,7 +712,7 @@ void URFGameplayComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
             	FDamageInfo DamageInfo;
             	DamageInfo.Magnitude      = Effect.Magnitude * Effect.StackCount;
             	DamageInfo.DamageType  = Effect.DamageTypeTag;
-            	DamageInfo.InstigatorRFGC = Effect.InstigatorRFGC;
+            	DamageInfo.InstigatorStatComp = Effect.InstigatorStatComp;
 
             	TArray<FDamageInfo> DamageArray;
             	DamageArray.Add(DamageInfo);
@@ -1200,13 +741,13 @@ void URFGameplayComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
             {
                 float EffectiveMagnitude = Effect.Magnitude * Effect.StackCount;
 
-                FAttributeModifier Modifier;
-                Modifier.AttributeTag = Effect.AttributeTag;
+                FStatModifier Modifier;
+                Modifier.StatTag = Effect.StatTag;
                 Modifier.Magnitude = EffectiveMagnitude;
                 Modifier.ModifierType = Effect.ModifierType;
-                Modifier.Target = EAttributeTarget::Both;
+                Modifier.Target = EStatTarget::Both;
 
-                ApplyAttributeModifier(Modifier);
+                ApplyStatModifier(Modifier);
 
                 Effect.TimeUntilNextTick += Effect.TickInterval;
             }
@@ -1215,10 +756,10 @@ void URFGameplayComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
             if (Effect.TimeRemaining <= 0.f)
             {
                 // Revert total stacked effect
-                FAttributeModifier InverseMod;
-                InverseMod.AttributeTag = Effect.AttributeTag;
+                FStatModifier InverseMod;
+                InverseMod.StatTag = Effect.StatTag;
                 InverseMod.ModifierType = Effect.ModifierType;
-                InverseMod.Target = EAttributeTarget::Both;
+                InverseMod.Target = EStatTarget::Both;
 
                 if (Effect.ModifierType == EModifierType::Additive)
                 {
@@ -1230,7 +771,7 @@ void URFGameplayComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
                     InverseMod.Magnitude = (1.f / TotalFactor) - 1.f;
                 }
 
-                ApplyAttributeModifier(InverseMod);
+                ApplyStatModifier(InverseMod);
             	// --- Remove active tag ---
             	if (Effect.WhileActiveTag.IsValid())
             	{
@@ -1243,7 +784,7 @@ void URFGameplayComponent::TickComponent(float DeltaTime, ELevelTick TickType, F
     }
 }
 
-void URFGameplayComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
+void UStatComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
 	if (UWorld* World = GetWorld())
 	{
