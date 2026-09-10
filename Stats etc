@@ -1,4 +1,142 @@
 
+Armor mitigation in World of Warcraft is a defensive stat that lowers the amount of physical damage you take from enemy attacks. 
+
+Fandom
+How Armor Works
+Reduction, Not Avoidance: Unlike dodging or parrying (which completely avoid an attack so you take zero damage), armor reduces the severity of a hit that actually connects. You still take damage, but it is smaller. 
+The Cap: Armor damage reduction has a maximum cap, usually 75% against enemies of equal or greater level. 
+Enemy Level Scaling: The effectiveness of your armor depends on your target's or attacker's level. Higher-level bosses require more armor to reach the same percentage of damage reduction. 
+Key Concepts
+Effective Health (EHP): High armor increases your total effective health against physical hits, meaning healers have more time to react before you are defeated.
+Diminishing Returns vs. Linear Scaling: Each point of armor adds a linear amount of physical survivability, even though the character sheet percentage curve slows down as you stack more. 
+
+Fandom
+Modifiers: Armor works alongside other Damage mitigation mechanics like blocking with shields, passive class bonuses, and external buffs or debuffs (such as Demoralizing Shout reducing enemy attack power). 
+If you'd like, let me know:
+Which expansion or version of the game you are playing (e.g., Classic vs. Modern)
+Your specific class or role
+I can give you the exact formulas or stat priority for your character.
+AI-svar kan innehålla fel. Läs mer
+
+
+
+
+Because of World of Warcraft's scaling formula, there is no single flat number for how much damage reduction 1 point of armor gives.
+Instead, the exact damage reduction of 1 point of armor depends entirely on your character's current level and how much armor you already have. 
+
+Fandom
+However, we can look at this from two perspectives: Damage Reduction % (which changes) and Effective Health (which stays perfectly linear). 
+1. The Raw Percentage View (Diminishing Returns)
+WoW calculates physical damage reduction using a curve. The general formula for a target at level 60 or higher is: 
+
+Dreamgrove
+
+Where 
+ is a massive scaling constant that increases based on the attacker's level. Because armor is in both the numerator and the denominator, your first point of armor grants the most percentage reduction, and every point after that grants slightly less. 
+
+Fandom
+At Level 70 (Dragonflight): 
+ is roughly 
+
+
+.
+Going from 0 to 1 Armor grants about 0.0095% damage reduction.
+Going from 10,000 to 10,001 Armor grants only about 0.0025% damage reduction.
+At Level 80 (The War Within): Because 
+ scales up past 15,000+, 1 point of armor grants a tiny fraction of a percent (roughly 0.00006% depending on your current total).
+2. The Effective Health View (Linear Scaling)
+While the percentage on your character sheet looks like it has diminishing returns, 1 point of armor always grants the exact same amount of survivability (Effective Health). 
+
+Dreamgrove
+Effective Health (EHP) is how much raw physical damage you can take before dying. 
+
+Reddit
+
+Because 
+ is a constant for your level, every 1 point of armor increases your physical durability by a fixed, flat percentage of your health pool. 
+If 
+
+
+
+ at your level, every 1 point of armor increases your physical EHP by exactly 0.01% of your max health, whether you have 100 armor or 8,000 armor.
+Summary Table: 1 Armor Point Impact
+Metric	At Low Armor	At High Armor	The Reality
+Damage Reduction %	Higher % per point	Lower % per point	Diminishing returns on your character sheet.
+Time to Die (EHP)	Same gains	Same gains	Linear returns. You last exactly as much longer per point.
+If you want, tell me:
+Your character's exact level
+Your character's current Armor total
+I can run the math to tell you exactly what percentage of damage reduction your next point of armor will provide!
+AI-svar kan innehålla fel. Läs mer
+
+
+
+
+If you want to mimic World of Warcraft's specific style of armor mitigation for your own game, you are looking for a Asymptotic / Hyperbolic Curve. This mathematical structure ensures that damage reduction approaches a maximum limit (like 75% or 85%) but can never technically surpass it without a hard cap, ensuring players never become 100% immune to damage just by stacking armor. 
+The universal core math used by WoW (and many games like League of Legends or Warcraft 3) is broken down below. 
+
+Warcraft3.Info
+The Core Formula
+To calculate the percentage of physical damage to reduce, use this equation: 
+
+Tanknotes
+
+To calculate the actual damage a player takes after mitigation, use this equation: 
+
+Tanknotes
+
+Which simplifies beautifully to:
+
+What is "K"?
+K is your Scaling Constant. It is the single most important variable in this formula because K is the exact amount of armor required to achieve exactly 50% damage reduction. 
+
+Dreamgrove
+If you plug in Armor = K, the formula becomes 
+
+
+ (50%).
+By changing K, you instantly change how valuable armor is across different character levels or tiers of game content. 
+
+Blizzard Forums
+How to Implement This in Your Game Engine
+When building your game, you shouldn't use a hardcoded value for K. Instead, scale K based on the Attacker's Level (or the player's level) so armor doesn't become overpowered as characters progress. 
+Step 1: Define K based on Level
+Create a function that calculates K dynamically. For example, if you want a level 1 player to hit 50% mitigation at 100 armor, but a level 50 player to need 5,000 armor:
+csharp
+// Example in C# / Unity pseudocode
+float CalculateKConstant(int level) {
+    // Linear scaling example: 50% reduction requires (Level * 100) armor
+    return level * 100f; 
+}
+Använd koden med försiktighet.
+Step 2: Calculate Damage Mitigation
+Apply the formula to calculate incoming damage. Ensure you also implement a hard cap so players can't break the game's combat tuning if they find an armor exploit. 
+
+Fandom
+csharp
+int CalculateMitigatedDamage(int rawDamage, float armorPoints, int attackerLevel) {
+    float K = CalculateKConstant(attackerLevel);
+    
+    // 1. Calculate raw reduction percentage
+    float damageReduction = armorPoints / (armorPoints + K);
+    
+    // 2. Enforce a WoW-style maximum cap (e.g., 75% max reduction)
+    if (damageReduction > 0.75f) {
+        damageReduction = 0.75f;
+    }
+    
+    // 3. Apply the reduction to the incoming damage
+    float finalDamage = rawDamage * (1f - damageReduction);
+    
+    // Round to integer for final health subtraction
+    return Mathf.RoundToInt(finalDamage);
+}
+Använd koden med försiktighet.
+Why This Formula is Great for Game Designers
+Perfect Effective Health (EHP) Scaling: Every single point of armor added increases a character's "Effective Health" against physical damage by a perfectly flat, linear amount. If a player has 1,000 HP, and K = 1000, every 1 point of armor gives them exactly 1 more point of "raw damage" durability. They will never feel like an armor upgrade was wasted. 
+
+Fandom
+Easy Balance Control: If you notice that tanks are surviving way too long in endgame content, you don't need to manually rebalance thousands of pieces of armor gear. You just subtly increase the value of K for high-level raid bosses, and everyone's armor naturally scales down in effectiveness against those specific enemies
 Target - Get actor location.
 
 sphere overlapping actors of type/pawn
